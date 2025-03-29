@@ -1,6 +1,7 @@
 import streamlit as st
 import pickle
 import nltk
+import os
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
@@ -8,16 +9,28 @@ import string
 import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 
+# Set a custom directory for NLTK data (persistent in Streamlit Cloud)
+nltk_data_dir = os.path.join(os.getcwd(), "nltk_data")  # This will be /app/<your-repo-name>/nltk_data
+if not os.path.exists(nltk_data_dir):
+    os.makedirs(nltk_data_dir)
+nltk.data.path.append(nltk_data_dir)
+
 # Download necessary NLTK resources
-nltk.download("punkt")
-nltk.download("stopwords")
+try:
+    nltk.download("punkt", download_dir=nltk_data_dir)
+    nltk.download("punkt_tab", download_dir=nltk_data_dir)  # Required for Punkt tokenizer
+    nltk.download("stopwords", download_dir=nltk_data_dir)
+except Exception as e:
+    st.error(f"⚠️ Error downloading NLTK resources: {e}")
+    st.stop()
 
 # Load model and vectorizer
 try:
+    # Ensure the path is correct relative to the root of your repo
     model = pickle.load(open("model/ln_model.pkl", "rb"))
     vectorizer = pickle.load(open("model/vectorizer.pkl", "rb"))
 except FileNotFoundError:
-    st.error("⚠️ Model or Vectorizer not found! Please check the files.")
+    st.error("⚠️ Model or Vectorizer not found! Please check the files in the 'model' directory.")
     st.stop()
 
 # Initialize NLP components
