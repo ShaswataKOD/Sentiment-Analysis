@@ -10,35 +10,32 @@ from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-# Define a reliable NLTK data path
-nltk_data_path = Path.home() / ".nltk_data"  # Works across platforms
-nltk.data.path.append(str(nltk_data_path))
+# Define a temporary NLTK data path for Render
+temp_nltk_path = Path("/tmp/nltk_data")  # /tmp is writable on Render
+nltk.data.path.append(str(temp_nltk_path))
 
-# Ensure necessary downloads
-for resource in ["punkt", "stopwords"]:
-    try:
-        nltk.data.find(f"tokenizers/{resource}" if resource == "punkt" else f"corpora/{resource}")
-    except LookupError:
-        nltk.download(resource, download_dir=str(nltk_data_path))
+# Download necessary NLTK resources if not present
+nltk.download("punkt", download_dir=str(temp_nltk_path))
+nltk.download("stopwords", download_dir=str(temp_nltk_path))
 
 # Initialize NLP components
 porter = PorterStemmer()
 stop_words = set(stopwords.words('english'))
 
 # Load model and vectorizer
-base_dir = Path(__file__).parent  # Ensures correct directory regardless of execution path
-model_path = base_dir / "model" / "ln_model.pkl"
-vectorizer_path = base_dir / "model" / "vectorizer.pkl"
+base_dir = Path(os.getcwd()) / "model"  # Use absolute path for compatibility
+model_path = base_dir / "ln_model.pkl"
+vectorizer_path = base_dir / "vectorizer.pkl"
 
-try:
-    with open(model_path, 'rb') as file:
-        model = pickle.load(file)
-
-    with open(vectorizer_path, 'rb') as file:
-        vectorizer = pickle.load(file)
-except FileNotFoundError:
+if not model_path.exists() or not vectorizer_path.exists():
     st.error("⚠️ Model or vectorizer file not found! Check the correct paths.")
     st.stop()
+
+with open(model_path, 'rb') as file:
+    model = pickle.load(file)
+
+with open(vectorizer_path, 'rb') as file:
+    vectorizer = pickle.load(file)
 
 # Text preprocessing function
 def preprocess_and_vectorize(text):
@@ -47,15 +44,16 @@ def preprocess_and_vectorize(text):
     text = re.sub(r'[@#]\w+', '', text)
     text = text.translate(str.maketrans('', '', string.punctuation))
     
-    try:
-        tokens = word_tokenize(text)
-    except LookupError:
-        nltk.download("punkt", download_dir=str(nltk_data_path))
-        tokens = word_tokenize(text)
-    
+    tokens = word_tokenize(text)
     tokens = [porter.stem(word) for word in tokens if word not in stop_words]
     cleaned_text = ' '.join(tokens)
-    vectorized_text = vectorizer.transform([cleaned_text])
+    
+    if hasattr(vectorizer, 'transform'):
+        vectorized_text = vectorizer.transform([cleaned_text])
+    else:
+        st.error("⚠️ Vectorizer is not properly loaded!")
+        st.stop()
+    
     return vectorized_text, tokens
 
 # Streamlit UI
@@ -78,14 +76,15 @@ if user_input.strip():
 
         # Keyword Highlighting (handling potential missing feature names)
         try:
-            feature_names = set(vectorizer.get_feature_names_out())  # Ensures compatibility
-            important_words = [word for word in tokens if word in feature_names]
-            highlighted_text = " ".join([
-                f"<span style='color:green;font-weight:bold'>{w}</span>" if w in important_words else w for w in tokens
-            ])
-            st.markdown(f"**Important words:** {highlighted_text}", unsafe_allow_html=True)
+            feature_names = set(vectorizer.get_feature_names_out())
         except AttributeError:
-            st.warning("⚠️ Unable to retrieve feature names from vectorizer. Word highlighting disabled.")
+            feature_names = set(vectorizer.get_feature_names())  # Fallback for older sklearn
+
+        important_words = [word for word in tokens if word in feature_names]
+        highlighted_text = " ".join([
+            f"<span style='color:green;font-weight:bold'>{w}</span>" if w in important_words else w for w in tokens
+        ])
+        st.markdown(f"**Important words:** {highlighted_text}", unsafe_allow_html=True)
     
     except Exception as e:
         st.error(f"⚠️ Error processing input: {e}")
@@ -97,11 +96,12 @@ uploaded_file = st.file_uploader("Upload a .txt file", type=["txt"])
 
 if uploaded_file:
     try:
+        file_text = uploaded_file.getvalue().decode("utf-8", errors="ignore")
+        lines = file_text.split("\n")
         results = []
         
-        for line in uploaded_file:
-            text = line.decode("utf-8", errors="ignore").strip()
-            if text:  # Ignore blank lines
+        for text in lines:
+            if text.strip():  # Ignore blank lines
                 vec_text, _ = preprocess_and_vectorize(text)
                 pred = model.predict(vec_text)[0]
                 conf = max(model.predict_proba(vec_text)[0])
