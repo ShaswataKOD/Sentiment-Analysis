@@ -2,6 +2,8 @@ import streamlit as st
 import pickle
 import nltk
 import os
+import pandas as pd  # Added since it's in requirements.txt
+import numpy as np   # Added since it's in requirements.txt
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
