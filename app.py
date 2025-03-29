@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import streamlit as st
 import pickle
 import re
@@ -10,23 +11,24 @@ from nltk.stem import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 # Define a reliable NLTK data path
-nltk_data_path = os.path.expanduser("~/.nltk_data")  # Works across platforms
-nltk.data.path.append(nltk_data_path)
+nltk_data_path = Path.home() / ".nltk_data"  # Works across platforms
+nltk.data.path.append(str(nltk_data_path))
 
 # Ensure necessary downloads
 for resource in ["punkt", "stopwords"]:
     try:
         nltk.data.find(f"tokenizers/{resource}" if resource == "punkt" else f"corpora/{resource}")
     except LookupError:
-        nltk.download(resource, download_dir=nltk_data_path)
+        nltk.download(resource, download_dir=str(nltk_data_path))
 
 # Initialize NLP components
 porter = PorterStemmer()
 stop_words = set(stopwords.words('english'))
 
 # Load model and vectorizer
-model_path = os.path.join(os.getcwd(), "model", "ln_model.pkl")
-vectorizer_path = os.path.join(os.getcwd(), "model", "vectorizer.pkl")
+base_dir = Path(__file__).parent  # Ensures correct directory regardless of execution path
+model_path = base_dir / "model" / "ln_model.pkl"
+vectorizer_path = base_dir / "model" / "vectorizer.pkl"
 
 try:
     with open(model_path, 'rb') as file:
@@ -44,7 +46,13 @@ def preprocess_and_vectorize(text):
     text = re.sub(r'http\S+|www\.\S+', '', text)
     text = re.sub(r'[@#]\w+', '', text)
     text = text.translate(str.maketrans('', '', string.punctuation))
-    tokens = word_tokenize(text)
+    
+    try:
+        tokens = word_tokenize(text)
+    except LookupError:
+        nltk.download("punkt", download_dir=str(nltk_data_path))
+        tokens = word_tokenize(text)
+    
     tokens = [porter.stem(word) for word in tokens if word not in stop_words]
     cleaned_text = ' '.join(tokens)
     vectorized_text = vectorizer.transform([cleaned_text])
@@ -70,7 +78,7 @@ if user_input.strip():
 
         # Keyword Highlighting (handling potential missing feature names)
         try:
-            feature_names = set(vectorizer.get_feature_names())  # Ensures compatibility
+            feature_names = set(vectorizer.get_feature_names_out())  # Ensures compatibility
             important_words = [word for word in tokens if word in feature_names]
             highlighted_text = " ".join([
                 f"<span style='color:green;font-weight:bold'>{w}</span>" if w in important_words else w for w in tokens
@@ -92,7 +100,7 @@ if uploaded_file:
         results = []
         
         for line in uploaded_file:
-            text = line.decode("utf-8").strip()
+            text = line.decode("utf-8", errors="ignore").strip()
             if text:  # Ignore blank lines
                 vec_text, _ = preprocess_and_vectorize(text)
                 pred = model.predict(vec_text)[0]
