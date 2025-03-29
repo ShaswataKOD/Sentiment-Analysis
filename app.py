@@ -10,11 +10,12 @@ from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-# Define a temporary NLTK data path for Render
-temp_nltk_path = Path("/tmp/nltk_data")  # /tmp is writable on Render
+# Ensure NLTK data directory exists
+temp_nltk_path = Path("/tmp/nltk_data")
+temp_nltk_path.mkdir(parents=True, exist_ok=True)  # Ensure it exists
 nltk.data.path.append(str(temp_nltk_path))
 
-# Download necessary NLTK resources if not present
+# Download necessary NLTK resources
 nltk.download("punkt", download_dir=str(temp_nltk_path))
 nltk.download("stopwords", download_dir=str(temp_nltk_path))
 
@@ -22,20 +23,24 @@ nltk.download("stopwords", download_dir=str(temp_nltk_path))
 porter = PorterStemmer()
 stop_words = set(stopwords.words('english'))
 
-# Load model and vectorizer
-base_dir = Path(os.getcwd()) / "model"  # Use absolute path for compatibility
+# Load model and vectorizer with proper error handling
+base_dir = Path(os.getcwd()) / "model"
 model_path = base_dir / "ln_model.pkl"
 vectorizer_path = base_dir / "vectorizer.pkl"
 
-if not model_path.exists() or not vectorizer_path.exists():
-    st.error("⚠️ Model or vectorizer file not found! Check the correct paths.")
+try:
+    with open(model_path, 'rb') as file:
+        model = pickle.load(file)
+except FileNotFoundError:
+    st.error("⚠️ Model file not found! Ensure `ln_model.pkl` is present in the `model` directory.")
     st.stop()
 
-with open(model_path, 'rb') as file:
-    model = pickle.load(file)
-
-with open(vectorizer_path, 'rb') as file:
-    vectorizer = pickle.load(file)
+try:
+    with open(vectorizer_path, 'rb') as file:
+        vectorizer = pickle.load(file)
+except FileNotFoundError:
+    st.error("⚠️ Vectorizer file not found! Ensure `vectorizer.pkl` is present in the `model` directory.")
+    st.stop()
 
 # Text preprocessing function
 def preprocess_and_vectorize(text):
@@ -74,12 +79,14 @@ if user_input.strip():
         sentiment = "Positive" if prediction >= 0.5 else "Negative"
         st.write(f"**Sentiment:** {sentiment} ({max(score):.2f} confidence)")
 
-        # Keyword Highlighting (handling potential missing feature names)
+        # Handling feature names retrieval
         try:
-            feature_names = set(vectorizer.get_feature_names_out())
+            feature_names = set(vectorizer.get_feature_names_out())  # Corrected method
         except AttributeError:
-            feature_names = set(vectorizer.get_feature_names())  # Fallback for older sklearn
+            st.error("⚠️ Vectorizer does not support feature extraction!")
+            feature_names = set()
 
+        # Keyword Highlighting
         important_words = [word for word in tokens if word in feature_names]
         highlighted_text = " ".join([
             f"<span style='color:green;font-weight:bold'>{w}</span>" if w in important_words else w for w in tokens
