@@ -12,7 +12,7 @@ import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 # Set a custom directory for NLTK data (persistent in Streamlit Cloud)
-nltk_data_dir = os.path.join(os.getcwd(), "nltk_data")  # This will be /app/<your-repo-name>/nltk_data
+nltk_data_dir = os.path.join(os.getcwd(), "nltk_data")
 if not os.path.exists(nltk_data_dir):
     os.makedirs(nltk_data_dir)
 nltk.data.path.append(nltk_data_dir)
@@ -20,7 +20,6 @@ nltk.data.path.append(nltk_data_dir)
 # Download necessary NLTK resources
 try:
     nltk.download("punkt", download_dir=nltk_data_dir)
-    nltk.download("punkt_tab", download_dir=nltk_data_dir)  # Required for Punkt tokenizer
     nltk.download("stopwords", download_dir=nltk_data_dir)
 except Exception as e:
     st.error(f"⚠️ Error downloading NLTK resources: {e}")
@@ -28,7 +27,6 @@ except Exception as e:
 
 # Load model and vectorizer
 try:
-    # Ensure the path is correct relative to the root of your repo
     model = pickle.load(open("model/ln_model.pkl", "rb"))
     vectorizer = pickle.load(open("model/vectorizer.pkl", "rb"))
 except FileNotFoundError:
@@ -49,24 +47,30 @@ def preprocess(text):
     return " ".join(tokens)
 
 # Streamlit UI
-st.set_page_config(page_title="Sentiment Analyzer", layout="wide")
+st.set_page_config(page_title="✨ Sentiment Analyzer", layout="centered", page_icon="🔍")
 
+# Custom CSS for Premium UI
 st.markdown("""
     <style>
-    .big-title {text-align: center; font-size: 40px; font-weight: bold; color: #4A90E2;}
+    body {background-color: #f5f7fa;}
+    .main {background: white; padding: 40px; border-radius: 15px; box-shadow: 0px 4px 10px rgba(0,0,0,0.1);}
+    .big-title {text-align: center; font-size: 45px; font-weight: bold; color: #3b5998;}
     .sub-title {text-align: center; font-size: 20px; color: #6C757D;}
-    .stTextArea {border-radius: 10px; border: 2px solid #4A90E2;}
-    .sentiment-box {padding: 15px; border-radius: 10px; font-weight: bold; text-align: center;}
-    .positive {background-color: #D4EDDA; color: #155724;}
-    .negative {background-color: #F8D7DA; color: #721C24;}
+    .stTextArea textarea {border-radius: 10px; border: 2px solid #3b5998; font-size: 16px; padding: 10px;}
+    .sentiment-box {padding: 20px; border-radius: 10px; font-size: 18px; font-weight: bold; text-align: center; margin-top: 20px;}
+    .positive {background-color: #D4EDDA; color: #155724; border: 2px solid #28a745;}
+    .negative {background-color: #F8D7DA; color: #721C24; border: 2px solid #dc3545;}
+    .footer {text-align: center; font-size: 14px; color: #888; margin-top: 30px;}
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown("<div class='big-title'>🔍 Sentiment Analysis App</div>", unsafe_allow_html=True)
-st.markdown("<div class='sub-title'>Analyze text sentiment effortlessly</div>", unsafe_allow_html=True)
+st.markdown("<div class='sub-title'>Analyze your text sentiment with AI-powered insights</div>", unsafe_allow_html=True)
 
 # Text Input
-user_input = st.text_area("Type your text below", "", height=150)
+st.markdown("<div class='main'>", unsafe_allow_html=True)
+user_input = st.text_area("💬 Enter your text:", "", height=150)
+st.markdown("</div>", unsafe_allow_html=True)
 
 if user_input.strip():
     processed_text = preprocess(user_input)
@@ -75,9 +79,8 @@ if user_input.strip():
     sentiment = "Positive" if prediction >= 0.5 else "Negative"
     confidence = max(model.predict_proba(vectorized_text)[0])
     
-    st.markdown(f"<div class='sentiment-box {'positive' if sentiment=='Positive' else 'negative'}'>\n"
-                f"{sentiment} Sentiment ({confidence:.2f} Confidence)\n" 
-                "</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sentiment-box {'positive' if sentiment=='Positive' else 'negative'}'>
+                {sentiment} Sentiment ({confidence:.2f} Confidence)
+                </div>", unsafe_allow_html=True)
 
-st.markdown("<hr>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center; font-size: 14px;'>Made with ❤️ using Streamlit</div>", unsafe_allow_html=True)
+st.markdown("<div class='footer'>Made with ❤️ using Streamlit</div>", unsafe_allow_html=True)
